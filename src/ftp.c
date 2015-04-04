@@ -49,7 +49,6 @@ as that of the covered work.  */
 #include "netrc.h"
 #include "convert.h"            /* for downloaded_file */
 #include "recur.h"              /* for INFINITE_RECURSION */
-#include "warc.h"
 
 #ifdef __VMS
 # include "vms.h"
@@ -238,17 +237,17 @@ static uerr_t ftp_get_listing (struct url *, ccon *, struct fileinfo **);
 
 /* Retrieves a file with denoted parameters through opening an FTP
    connection to the server.  It always closes the data connection,
-   and closes the control connection in case of error.  If warc_tmp
-   is non-NULL, the downloaded data will be written there as well.  */
+   and closes the control connection in case of error.  */
 static uerr_t
 getftp (struct url *u, wgint passed_expected_bytes, wgint *qtyread,
-        wgint restval, ccon *con, int count, FILE *warc_tmp)
+        wgint restval, ccon *con, int count)
 {
   int csock, dtsock, local_sock, res;
   uerr_t err = RETROK;          /* appease the compiler */
   FILE *fp;
-  char *respline, *tms;
-  const char *user, *passwd, *tmrate;
+  char *user, *passwd, *respline;
+  char *tms;
+  const char *tmrate;
   int cmd = con->cmd;
   bool pasv_mode_open = false;
   wgint expected_bytes = 0;
@@ -288,6 +287,13 @@ getftp (struct url *u, wgint passed_expected_bytes, wgint *qtyread,
     {
       char    *host = con->proxy ? con->proxy->host : u->host;
       int      port = con->proxy ? con->proxy->port : u->port;
+      char *logname = user;
+
+      if (con->proxy)
+        {
+          /* If proxy is in use, log in as username@target-site. */
+          logname = concat_strings (user, "@", u->host, (char *) 0);
+        }
 
       /* Login to the server: */
 
@@ -295,10 +301,20 @@ getftp (struct url *u, wgint passed_expected_bytes, wgint *qtyread,
 
       csock = connect_to_host (host, port);
       if (csock == E_HOST)
+        {
+          if (con->proxy)
+            xfree (logname);
+
           return HOSTERR;
+        }
       else if (csock < 0)
+        {
+          if (con->proxy)
+            xfree (logname);
+
           return (retryable_socket_connect_error (errno)
                   ? CONERROR : CONIMPOSSIBLE);
+        }
 
       if (cmd & LEAVE_PENDING)
         con->csock = csock;
@@ -310,15 +326,10 @@ getftp (struct url *u, wgint passed_expected_bytes, wgint *qtyread,
                  quotearg_style (escape_quoting_style, user));
       if (opt.server_response)
         logputs (LOG_ALWAYS, "\n");
+      err = ftp_login (csock, logname, passwd);
+
       if (con->proxy)
-        {
-          /* If proxy is in use, log in as username@target-site. */
-          char *logname = concat_strings (user, "@", u->host, (char *) 0);
-          err = ftp_login (csock, logname, passwd);
-          xfree (logname);
-        }
-      else
-        err = ftp_login (csock, user, passwd);
+        xfree (logname);
 
       /* FTPRERR, FTPSRVERR, WRITEFAILED, FTPLOGREFUSED, FTPLOGINC */
       switch (err)
@@ -501,7 +512,7 @@ Error in server response, closing control connection.\n"));
         logputs (LOG_VERBOSE, _("==> CWD not needed.\n"));
       else
         {
-          const char *targ = NULL;
+          char *targ = NULL;
           int cwd_count;
           int cwd_end;
           int cwd_start;
@@ -616,16 +627,16 @@ Error in server response, closing control connection.\n"));
              The VMS restriction may be relaxed when the squirrely code
              above is reformed.
           */
-          if ((con->rs == ST_VMS) && (target[0] != '/'))
-            {
-              cwd_start = 0;
-              DEBUGP (("Using two-step CWD for relative path.\n"));
-            }
-          else
-            {
+	  if ((con->rs == ST_VMS) && (target[0] != '/'))
+	    {
+	      cwd_start = 0;
+	      DEBUGP (("Using two-step CWD for relative path.\n"));
+	    }
+	  else
+	    {
               /* Go straight to the target. */
-              cwd_start = 1;
-            }
+	      cwd_start = 1;
+	    }
 
           /* At least one VMS FTP server (TCPware V5.6-2) can switch to
              a UNIX emulation mode when given a UNIX-like directory
@@ -643,10 +654,10 @@ Error in server response, closing control connection.\n"));
              Unlike the rest of this block, this particular behavior
              _is_ VMS-specific, so it gets its own VMS test.
           */
-          if ((con->rs == ST_VMS) && (strchr( target, '/') != NULL))
+	  if ((con->rs == ST_VMS) && (strchr( target, '/') != NULL))
             {
               cwd_end = 3;
-              DEBUGP (("Using extra \"CWD []\" step for VMS server.\n"));
+	      DEBUGP (("Using extra \"CWD []\" step for VMS server.\n"));
             }
           else
             {
@@ -656,22 +667,22 @@ Error in server response, closing control connection.\n"));
           /* 2004-09-20 SMS. */
           /* Sorry about the deviant indenting.  Laziness. */
 
-          for (cwd_count = cwd_start; cwd_count < cwd_end; cwd_count++)
-            {
+	  for (cwd_count = cwd_start; cwd_count < cwd_end; cwd_count++)
+	{
           switch (cwd_count)
             {
               case 0:
-                /* Step one (optional): Go to the initial directory,
-                   exactly as reported by the server.
-                */
-                targ = con->id;
+	        /* Step one (optional): Go to the initial directory,
+	           exactly as reported by the server.
+	        */
+	        targ = con->id;
                 break;
 
               case 1:
-                /* Step two: Go to the target directory.  (Absolute or
-                   relative will work now.)
-                */
-                targ = target;
+	        /* Step two: Go to the target directory.  (Absolute or
+	           relative will work now.)
+	        */
+	        targ = target;
                 break;
 
               case 2:
@@ -684,7 +695,7 @@ Error in server response, closing control connection.\n"));
               default:
                 /* Can't happen. */
                 assert (1);
-            }
+	    }
 
           if (!opt.server_response)
             logprintf (LOG_VERBOSE, "==> CWD (%d) %s ... ", cwd_count,
@@ -938,42 +949,42 @@ Error in server response, closing control connection.\n"));
   if (cmd & DO_RETR)
     {
       /* If we're in spider mode, don't really retrieve anything except
-         the directory listing and verify whether the given "file" exists.  */
+	 the directory listing and verify whether the given "file" exists.  */
       if (opt.spider)
         {
-          bool exists = false;
-          uerr_t res;
-          struct fileinfo *f;
-          res = ftp_get_listing (u, con, &f);
-          /* Set the DO_RETR command flag again, because it gets unset when
-             calling ftp_get_listing() and would otherwise cause an assertion
-             failure earlier on when this function gets repeatedly called
-             (e.g., when recursing).  */
-          con->cmd |= DO_RETR;
-          if (res == RETROK)
-            {
-              while (f)
-                {
-                  if (!strcmp (f->name, u->file))
-                    {
-                      exists = true;
-                      break;
-                    }
-                  f = f->next;
-                }
+	  bool exists = false;
+	  uerr_t res;
+	  struct fileinfo *f;
+	  res = ftp_get_listing (u, con, &f);
+	  /* Set the DO_RETR command flag again, because it gets unset when
+	     calling ftp_get_listing() and would otherwise cause an assertion
+	     failure earlier on when this function gets repeatedly called
+	     (e.g., when recursing).  */
+	  con->cmd |= DO_RETR;
+	  if (res == RETROK)
+	    {
+	      while (f)
+		{
+		  if (!strcmp (f->name, u->file))
+		    {
+		      exists = true;
+		      break;
+		    }
+		  f = f->next;
+		}
               if (exists)
                 {
                   logputs (LOG_VERBOSE, "\n");
                   logprintf (LOG_NOTQUIET, _("File %s exists.\n"),
                              quote (u->file));
                 }
-              else
+	      else
                 {
-                  logputs (LOG_VERBOSE, "\n");
-                  logprintf (LOG_NOTQUIET, _("No such file %s.\n"),
-                             quote (u->file));
-                }
-            }
+		  logputs (LOG_VERBOSE, "\n");
+		  logprintf (LOG_NOTQUIET, _("No such file %s.\n"),
+			     quote (u->file));
+		}
+	    }
           fd_close (csock);
           con->csock = -1;
           fd_close (dtsock);
@@ -1141,25 +1152,13 @@ Error in server response, closing control connection.\n"));
    Elsewhere, define a constant "binary" flag.
    Isn't it nice to have distinct text and binary file types?
 */
-/* 2011-09-30 SMS.
-   Added listing files to the set of non-"binary" (text, Stream_LF)
-   files.  (Wget works either way, but other programs, like, say, text
-   editors, work better on listing files which have text attributes.)
-   Now we use "binary" attributes for a binary ("IMAGE") transfer,
-   unless "--ftp-stmlf" was specified, and we always use non-"binary"
-   (text, Stream_LF) attributes for a listing file, or for an ASCII
-   transfer.
-   Tidied the VMS-specific BIN_TYPE_xxx macros, and changed the call to
-   fopen_excl() (restored?) to use BIN_TYPE_FILE instead of "true".
-*/
-#ifdef __VMS
 # define BIN_TYPE_TRANSFER (type_char != 'A')
-# define BIN_TYPE_FILE \
-   ((!(cmd & DO_LIST)) && BIN_TYPE_TRANSFER && (opt.ftp_stmlf == 0))
+#ifdef __VMS
 # define FOPEN_OPT_ARGS "fop=sqo", "acc", acc_cb, &open_id
 # define FOPEN_OPT_ARGS_BIN "ctx=bin,stm", "rfm=fix", "mrs=512" FOPEN_OPT_ARGS
+# define BIN_TYPE_FILE (BIN_TYPE_TRANSFER && (opt.ftp_stmlf == 0))
 #else /* def __VMS */
-# define BIN_TYPE_FILE true
+# define BIN_TYPE_FILE 1
 #endif /* def __VMS [else] */
 
       if (restval && !(con->cmd & DO_LIST))
@@ -1183,21 +1182,21 @@ Error in server response, closing control connection.\n"));
         }
       else if (opt.noclobber || opt.always_rest || opt.timestamping || opt.dirstruct
                || opt.output_document || count > 0)
-        {
-          if (opt.unlink && file_exists_p (con->target))
-            {
-              int res = unlink (con->target);
-              if (res < 0)
-                {
-                  logprintf (LOG_NOTQUIET, "%s: %s\n", con->target,
-                    strerror (errno));
-                    fd_close (csock);
-                    con->csock = -1;
-                    fd_close (dtsock);
-                    fd_close (local_sock);
-                    return UNLINKERR;
-                }
-            }
+        {	  
+	  if (opt.unlink && file_exists_p (con->target))
+	    {
+	      int res = unlink (con->target);
+	      if (res < 0)
+		{
+		  logprintf (LOG_NOTQUIET, "%s: %s\n", con->target,
+			     strerror (errno));
+		  fd_close (csock);
+		  con->csock = -1;
+		  fd_close (dtsock);
+		  fd_close (local_sock);
+		  return UNLINKERR;
+		}
+	    }
 
 #ifdef __VMS
           int open_id;
@@ -1218,7 +1217,7 @@ Error in server response, closing control connection.\n"));
         }
       else
         {
-          fp = fopen_excl (con->target, BIN_TYPE_FILE);
+          fp = fopen_excl (con->target, true);
           if (!fp && errno == EEXIST)
             {
               /* We cannot just invent a new name and use it (which is
@@ -1263,7 +1262,7 @@ Error in server response, closing control connection.\n"));
   rd_size = 0;
   res = fd_read_body (dtsock, fp,
                       expected_bytes ? expected_bytes - restval : 0,
-                      restval, &rd_size, qtyread, &con->dltime, flags, warc_tmp);
+                      restval, &rd_size, qtyread, &con->dltime, flags);
 
   tms = datetime_str (time (NULL));
   tmrate = retr_rate (rd_size, con->dltime);
@@ -1274,18 +1273,15 @@ Error in server response, closing control connection.\n"));
   if (!output_stream || con->cmd & DO_LIST)
     fclose (fp);
 
-  /* If fd_read_body couldn't write to fp or warc_tmp, bail out.  */
-  if (res == -2 || (warc_tmp != NULL && res == -3))
+  /* If fd_read_body couldn't write to fp, bail out.  */
+  if (res == -2)
     {
       logprintf (LOG_NOTQUIET, _("%s: %s, closing control connection.\n"),
                  con->target, strerror (errno));
       fd_close (csock);
       con->csock = -1;
       fd_close (dtsock);
-      if (res == -2)
-        return FWRITEERR;
-      else if (res == -3)
-        return WARC_TMP_FWRITEERR;
+      return FWRITEERR;
     }
   else if (res == -1)
     {
@@ -1367,20 +1363,18 @@ Error in server response, closing control connection.\n"));
         logprintf (LOG_ALWAYS, "%s: %s\n", con->target, strerror (errno));
       else
         {
-          char *line = NULL;
-          size_t bufsize = 0;
-          ssize_t len;
-
-          /* The lines are being read with getline because of
+          char *line;
+          /* The lines are being read with read_whole_line because of
              no-buffering on opt.lfile.  */
-          while ((len = getline (&line, &bufsize, fp)) > 0)
+          while ((line = read_whole_line (fp)) != NULL)
             {
-              while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r'))
-                line[--len] = '\0';
+              char *p = strchr (line, '\0');
+              while (p > line && (p[-1] == '\n' || p[-1] == '\r'))
+                *--p = '\0';
               logprintf (LOG_ALWAYS, "%s\n",
                          quotearg_style (escape_quoting_style, line));
+              xfree (line);
             }
-          xfree (line);
           fclose (fp);
         }
     } /* con->cmd & DO_LIST && server_response */
@@ -1403,11 +1397,6 @@ ftp_loop_internal (struct url *u, struct fileinfo *f, ccon *con, char **local_fi
   uerr_t err;
   struct_stat st;
 
-  /* Declare WARC variables. */
-  bool warc_enabled = (opt.warc_filename != NULL);
-  FILE *warc_tmp = NULL;
-  ip_address *warc_ip = NULL;
-
   /* Get the target, and set the name for the message accordingly. */
   if ((f == NULL) && (con->target))
     {
@@ -1426,12 +1415,7 @@ ftp_loop_internal (struct url *u, struct fileinfo *f, ccon *con, char **local_fi
 
   /* If the output_document was given, then this check was already done and
      the file didn't exist. Hence the !opt.output_document */
-
-  /* If we receive .listing file it is necessary to determine system type of the ftp
-     server even if opn.noclobber is given. Thus we must ignore opt.noclobber in
-     order to establish connection with the server and get system type. */
-  if (opt.noclobber && !opt.output_document && file_exists_p (con->target)
-      && !((con->cmd & DO_LIST) && !(con->cmd & DO_RETR)))
+  if (opt.noclobber && !opt.output_document && file_exists_p (con->target))
     {
       logprintf (LOG_VERBOSE,
                  _("File %s already there; not retrieving.\n"), quote (con->target));
@@ -1448,21 +1432,6 @@ ftp_loop_internal (struct url *u, struct fileinfo *f, ccon *con, char **local_fi
     con->st = ON_YOUR_OWN;
 
   orig_lp = con->cmd & LEAVE_PENDING ? 1 : 0;
-
-  /* For file RETR requests, we can write a WARC record.
-     We record the file contents to a temporary file. */
-  if (warc_enabled && (con->cmd & DO_RETR))
-    {
-      warc_tmp = warc_tempfile ();
-      if (warc_tmp == NULL)
-        return WARC_TMP_FOPENERR;
-
-      if (!con->proxy && con->csock != -1)
-        {
-          warc_ip = (ip_address *) alloca (sizeof (ip_address));
-          socket_ip_address (con->csock, warc_ip, ENDPOINT_PEER);
-        }
-    }
 
   /* THE loop.  */
   do
@@ -1528,10 +1497,7 @@ ftp_loop_internal (struct url *u, struct fileinfo *f, ccon *con, char **local_fi
         len = f->size;
       else
         len = 0;
-
-      /* If we are working on a WARC record, getftp should also write
-         to the warc_tmp file. */
-      err = getftp (u, len, &qtyread, restval, con, count, warc_tmp);
+      err = getftp (u, len, &qtyread, restval, con, count);
 
       if (con->csock == -1)
         con->st &= ~DONE_CWD;
@@ -1542,10 +1508,8 @@ ftp_loop_internal (struct url *u, struct fileinfo *f, ccon *con, char **local_fi
         {
         case HOSTERR: case CONIMPOSSIBLE: case FWRITEERR: case FOPENERR:
         case FTPNSFOD: case FTPLOGINC: case FTPNOPASV: case CONTNOTSUPPORTED:
-        case UNLINKERR: case WARC_TMP_FWRITEERR:
+        case UNLINKERR:
           /* Fatal errors, give up.  */
-          if (warc_tmp != NULL)
-            fclose (warc_tmp);
           return err;
         case CONSOCKERR: case CONERROR: case FTPSRVERR: case FTPRERR:
         case WRITEFAILED: case FTPUNKNOWNTYPE: case FTPSYSERR:
@@ -1611,19 +1575,6 @@ ftp_loop_internal (struct url *u, struct fileinfo *f, ccon *con, char **local_fi
           logprintf (LOG_NONVERBOSE, "%s URL: %s [%s] -> \"%s\" [%d]\n",
                      tms, hurl, number_to_static_string (qtyread), locf, count);
           xfree (hurl);
-        }
-
-      if (warc_enabled && (con->cmd & DO_RETR))
-        {
-          /* Create and store a WARC resource record for the retrieved file. */
-          bool warc_res;
-
-          warc_res = warc_write_resource_record (NULL, u->url, NULL, NULL,
-                                                  warc_ip, NULL, warc_tmp, -1);
-          if (! warc_res)
-            return WARC_ERR;
-
-          /* warc_write_resource_record has also closed warc_tmp. */
         }
 
       if ((con->cmd & DO_LIST))
@@ -1929,10 +1880,8 @@ Already have correct symlink %s -> %s\n\n"),
 
       set_local_file (&actual_target, con->target);
 
-      /* If downloading a plain file, and the user requested it, then
-         set valid (non-zero) permissions. */
-      if (dlthis && (actual_target != NULL) &&
-       (f->type == FT_PLAINFILE) && opt.preserve_perm)
+      /* If downloading a plain file, set valid (non-zero) permissions. */
+      if (dlthis && (actual_target != NULL) && (f->type == FT_PLAINFILE))
         {
           if (f->perms)
             chmod (actual_target, f->perms);
@@ -1965,9 +1914,7 @@ Already have correct symlink %s -> %s\n\n"),
       xfree (ofile);
 
       /* Break on fatals.  */
-      if (err == QUOTEXC || err == HOSTERR || err == FWRITEERR
-          || err == WARC_ERR || err == WARC_TMP_FOPENERR
-          || err == WARC_TMP_FWRITEERR)
+      if (err == QUOTEXC || err == HOSTERR || err == FWRITEERR)
         break;
       con->cmd &= ~ (DO_CWD | DO_LOGIN);
       f = f->next;

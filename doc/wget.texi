@@ -20,9 +20,9 @@
 @set Wget Wget
 @c man title Wget The non-interactive network downloader.
 
-@dircategory Network applications
+@dircategory Network Applications
 @direntry
-* Wget: (wget).                 Non-interactive network downloader.
+* Wget: (wget).         The non-interactive network downloader.
 @end direntry
 
 @copying
@@ -479,9 +479,6 @@ Turn off verbose without being completely quiet (use @samp{-q} for
 that), which means that error messages and basic information still get
 printed.
 
-@item --report-speed=@var{type}
-Output bandwidth as @var{type}.  The only accepted value is @samp{bits}.
-
 @cindex input-file
 @item -i @var{file}
 @itemx --input-file=@var{file}
@@ -550,10 +547,10 @@ IPs.
 
 @cindex retries
 @cindex tries
-@cindex number of tries
+@cindex number of retries
 @item -t @var{number}
 @itemx --tries=@var{number}
-Set number of tries to @var{number}. Specify 0 or @samp{inf} for
+Set number of retries to @var{number}.  Specify 0 or @samp{inf} for
 infinite retrying.  The default is to retry 20 times, with the exception
 of fatal errors like ``connection refused'' or ``not found'' (404),
 which are not retried.
@@ -715,12 +712,9 @@ different meaning to one dot.  With the @code{default} style each dot
 represents 1K, there are ten dots in a cluster and 50 dots in a line.
 The @code{binary} style has a more ``computer''-like orientation---8K
 dots, 16-dots clusters and 48 dots per line (which makes for 384K
-lines).  The @code{mega} style is suitable for downloading large
+lines).  The @code{mega} style is suitable for downloading very large
 files---each dot represents 64K retrieved, there are eight dots in a
 cluster, and 48 dots on each line (so each line contains 3M).
-If @code{mega} is not enough then you can use the @code{giga}
-style---each dot represents 1M retrieved, there are eight dots in a
-cluster, and 32 dots on each line (so each line contains 32M).
 
 Note that you can set the default style using the @code{progress}
 command in @file{.wgetrc}.  That setting may be overridden from the
@@ -878,7 +872,7 @@ recommendation to block many unrelated users from a web site due to the
 actions of one.
 
 @cindex proxy
-@item --no-proxy
+@itemx --no-proxy
 Don't use proxies, even if the appropriate @code{*_proxy} environment
 variable is defined.
 
@@ -979,7 +973,7 @@ are outside the range of @sc{ascii} characters (that is, greater than
 whose encoding does not match the one used locally.
 
 @cindex IPv6
-@item -4
+@itemx -4
 @itemx --inet4-only
 @itemx -6
 @itemx --inet6-only
@@ -1460,11 +1454,6 @@ like everything else. Wget does not currently support
 @code{application/x-www-form-urlencoded}. Only one of
 @samp{--post-data} and @samp{--post-file} should be specified.
 
-Please note that wget does not require the content to be of the form
-@code{key1=value1&key2=value2}, and neither does it test for it. Wget will
-simply transmit whatever data is provided to it. Most servers however expect
-the POST data to be in the above format when processing HTML Forms.
-
 Please be aware that Wget needs to know the size of the POST data in
 advance.  Therefore the argument to @code{--post-file} must be a regular
 file; specifying a FIFO or something like @file{/dev/stdin} won't work.
@@ -1505,34 +1494,6 @@ them (and neither will browsers) and the @file{cookies.txt} file will
 be empty.  In that case use @samp{--keep-session-cookies} along with
 @samp{--save-cookies} to force saving of session cookies.
 
-@cindex Other HTTP Methods
-@item --method=@var{HTTP-Method}
-For the purpose of RESTful scripting, Wget allows sending of other HTTP Methods
-without the need to explicitly set them using @samp{--header=Header-Line}.
-Wget will use whatever string is passed to it after @samp{--method} as the HTTP
-Method to the server.
-
-@item --body-data=@var{Data-String}
-@itemx --body-file=@var{Data-File}
-Must be set when additional data needs to be sent to the server along with the
-Method specified using @samp{--method}. @samp{--post-data} sends @var{string} as
-data, whereas @samp{--post-file} sends the contents of @var{file}. Other than that,
-they work in exactly the same way.
-
-Currently, @samp{--body-file} is @emph{not} for transmitting files as a whole.
-Wget does not currently support @code{multipart/form-data} for transmitting data;
-only @code{application/x-www-form-urlencoded}. In the future, this may be changed
-so that wget sends the @samp{--body-file} as a complete file instead of sending its
-contents to the server. Please be aware that Wget needs to know the contents of
-BODY Data in advance, and hence the argument to @samp{--body-file} should be a
-regular file. See @samp{--post-file} for a more detailed explanation.
-Only one of @samp{--body-data} and @samp{--body-file} should be specified.
-
-Wget handles these requests in the same way that it handles @samp{--post-data}
-and @samp{--post-file}. If you invoke Wget with @samp{--method=POST} and the server
-responds with a redirect request, then Wget will revert to a GET request during the
-redirection as is explained in @samp{--post-data}.
-
 @cindex Content-Disposition
 @item --content-disposition
 
@@ -1544,12 +1505,6 @@ to suffer from a few bugs, which is why it is not currently enabled by default.
 This option is useful for some file-downloading CGI programs that use
 @code{Content-Disposition} headers to describe what the name of a
 downloaded file should be.
-
-@cindex Content On Error
-@item --content-on-error
-
-If this is set to on, wget will not skip the content when the server responds
-with a http status code that indicates error.
 
 @cindex Trust server names
 @item --trust-server-names
@@ -1695,36 +1650,6 @@ read random data from EGD socket specified using this option.
 If this option is not specified (and the equivalent startup command is
 not used), EGD is never contacted.  EGD is not needed on modern Unix
 systems that support @file{/dev/random}.
-@end table
-
-@cindex WARC
-@table @samp
-@item --warc-file=@var{file}
-Use @var{file} as the destination WARC file.
-
-@item --warc-header=@var{string}
-Use @var{string} into as the warcinfo record.
-
-@item --warc-max-size=@var{size}
-Set the maximum size of the WARC files to @var{size}.
-
-@item --warc-cdx
-Write CDX index files.
-
-@item --warc-dedup=@var{file}
-Do not store records listed in this CDX file.
-
-@item --no-warc-compression
-Do not compress WARC files with GZIP.
-
-@item --no-warc-digests
-Do not calculate SHA1 digests.
-
-@item --no-warc-keep-log
-Do not store the log file in a WARC record.
-
-@item --warc-tempdir=@var{dir}
-Specify the location for temporary files created by the WARC writer.
 @end table
 
 @node FTP Options, Recursive Retrieval Options, HTTPS (SSL/TLS) Options, Invoking
@@ -2049,10 +1974,6 @@ any of the wildcard characters, @samp{*}, @samp{?}, @samp{[} or
 @samp{]}, appear in an element of @var{acclist} or @var{rejlist},
 it will be treated as a pattern, rather than a suffix.
 
-@item --accept-regex @var{urlregex}
-@itemx --reject-regex @var{urlregex}
-Specify a regular expression to accept or reject the complete URL.
-
 @item -D @var{domain-list}
 @itemx --domains=@var{domain-list}
 Set domains to be followed.  @var{domain-list} is a comma-separated list
@@ -2357,8 +2278,6 @@ in @file{.wgetrc}.
 @item -A @var{acclist}
 @itemx --accept @var{acclist}
 @itemx accept = @var{acclist}
-@itemx --accept-regex @var{urlregex}
-@itemx accept-regex = @var{urlregex}
 The argument to @samp{--accept} option is a list of file suffixes or
 patterns that Wget will download during recursive retrieval.  A suffix
 is the ending part of a file, and consists of ``normal'' letters,
@@ -2375,9 +2294,6 @@ a description of how pattern matching works.
 Of course, any number of suffixes and patterns can be combined into a
 comma-separated list, and given as an argument to @samp{-A}.
 
-The argument to @samp{--accept-regex} option is a regular expression which
-is matched against the complete URL.
-
 @cindex reject wildcards
 @cindex reject suffixes
 @cindex wildcards, reject
@@ -2385,8 +2301,6 @@ is matched against the complete URL.
 @item -R @var{rejlist}
 @itemx --reject @var{rejlist}
 @itemx reject = @var{rejlist}
-@itemx --reject-regex @var{urlregex}
-@itemx reject-regex = @var{urlregex}
 The @samp{--reject} option works the same way as @samp{--accept}, only
 its logic is the reverse; Wget will download all files @emph{except} the
 ones matching the suffixes (or patterns) in the list.
@@ -2397,9 +2311,6 @@ Analogously, to download all files except the ones beginning with
 @samp{bjork}, use @samp{wget -R "bjork*"}.  The quotes are to prevent
 expansion by the shell.
 @end table
-
-The argument to @samp{--accept-regex} option is a regular expression which
-is matched against the complete URL.
 
 @noindent
 The @samp{-A} and @samp{-R} options may be combined to achieve even
@@ -3133,7 +3044,7 @@ display properly---the same as @samp{-p}.
 Change setting of passive @sc{ftp}, equivalent to the
 @samp{--passive-ftp} option.
 
-@item password = @var{string}
+@itemx password = @var{string}
 Specify password @var{string} for both @sc{ftp} and @sc{http} file retrieval. 
 This command can be overridden using the @samp{ftp_password} and 
 @samp{http_password} command for @sc{ftp} and @sc{http} respectively.
@@ -3615,36 +3526,34 @@ internal networks from the rest of Internet.  In order to obtain
 information from the Web, their users connect and retrieve remote data
 using an authorized proxy.
 
-@c man begin ENVIRONMENT
 Wget supports proxies for both @sc{http} and @sc{ftp} retrievals.  The
 standard way to specify proxy location, which Wget recognizes, is using
 the following environment variables:
 
-@table @env
+@table @code
 @item http_proxy
 @itemx https_proxy
-If set, the @env{http_proxy} and @env{https_proxy} variables should
+If set, the @code{http_proxy} and @code{https_proxy} variables should
 contain the @sc{url}s of the proxies for @sc{http} and @sc{https}
 connections respectively.
 
 @item ftp_proxy
 This variable should contain the @sc{url} of the proxy for @sc{ftp}
-connections.  It is quite common that @env{http_proxy} and
-@env{ftp_proxy} are set to the same @sc{url}.
+connections.  It is quite common that @code{http_proxy} and
+@code{ftp_proxy} are set to the same @sc{url}.
 
 @item no_proxy
 This variable should contain a comma-separated list of domain extensions
 proxy should @emph{not} be used for.  For instance, if the value of
-@env{no_proxy} is @samp{.mit.edu}, proxy will not be used to retrieve
+@code{no_proxy} is @samp{.mit.edu}, proxy will not be used to retrieve
 documents from MIT.
 @end table
-@c man end
 
 In addition to the environment variables, proxy location and settings
 may be specified from within Wget itself.
 
 @table @samp
-@item --no-proxy
+@itemx --no-proxy
 @itemx proxy = on/off
 This option and the corresponding command may be used to suppress the
 use of proxy, even if the appropriate environment variables are set.

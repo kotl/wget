@@ -79,10 +79,6 @@ as that of the covered work.  */
    logging is inhibited, logfp is set back to NULL. */
 static FILE *logfp;
 
-/* A second file descriptor pointing to the temporary log file for the
-   WARC writer.  If WARC writing is disabled, this is NULL.  */
-static FILE *warclogfp;
-
 /* If true, it means logging is inhibited, i.e. nothing is printed or
    stored.  */
 static bool inhibit_logging;
@@ -308,31 +304,6 @@ get_log_fp (void)
     return logfp;
   return stderr;
 }
-
-/* Returns the file descriptor for the secondary log file. This is
-   WARCLOGFP, except if called before log_init, in which case it
-   returns stderr.  This is useful in case someone calls a logging
-   function before log_init.
-
-   If logging is inhibited, return NULL.  */
-
-static FILE *
-get_warc_log_fp (void)
-{
-  if (inhibit_logging)
-    return NULL;
-  if (warclogfp)
-    return warclogfp;
-  return NULL;
-}
-
-/* Sets the file descriptor for the secondary log file.  */
-
-void
-log_set_warc_log_fp (FILE * fp)
-{
-  warclogfp = fp;
-}
 
 /* Log a literal string S.  The string is logged as-is, without a
    newline appended.  */
@@ -341,17 +312,13 @@ void
 logputs (enum log_options o, const char *s)
 {
   FILE *fp;
-  FILE *warcfp;
 
   check_redirect_output ();
   if ((fp = get_log_fp ()) == NULL)
     return;
-  warcfp = get_warc_log_fp ();
   CHECK_VERBOSE (o);
 
   FPUTS (s, fp);
-  if (warcfp != NULL)
-    FPUTS (s, warcfp);
   if (save_context_p)
     saved_append (s);
   if (flush_log_p)
@@ -389,9 +356,8 @@ log_vprintf_internal (struct logvprintf_state *state, const char *fmt,
   int available_size = sizeof (smallmsg);
   int numwritten;
   FILE *fp = get_log_fp ();
-  FILE *warcfp = get_warc_log_fp ();
 
-  if (!save_context_p && warcfp == NULL)
+  if (!save_context_p)
     {
       /* In the simple case just call vfprintf(), to avoid needless
          allocation and games with vsnprintf(). */
@@ -441,11 +407,8 @@ log_vprintf_internal (struct logvprintf_state *state, const char *fmt,
     }
 
   /* Writing succeeded. */
-  if (save_context_p)
-    saved_append (write_ptr);
+  saved_append (write_ptr);
   FPUTS (write_ptr, fp);
-  if (warcfp != NULL)
-    FPUTS (write_ptr, warcfp);
   if (state->bigmsg)
     xfree (state->bigmsg);
 
@@ -463,7 +426,6 @@ void
 logflush (void)
 {
   FILE *fp = get_log_fp ();
-  FILE *warcfp = get_warc_log_fp ();
   if (fp)
     {
 /* 2005-10-25 SMS.
@@ -478,10 +440,6 @@ logflush (void)
       fflush (fp);
 #endif /* def __VMS [else] */
     }
-
-  if (warcfp != NULL)
-    fflush (warcfp);
-
   needs_flushing = false;
 }
 
@@ -615,14 +573,14 @@ log_init (const char *file, bool appendp)
     }
 }
 
-/* Close LOGFP (only if we opened it, not if it's stderr), inhibit
-   further logging and free the memory associated with it.  */
+/* Close LOGFP, inhibit further logging and free the memory associated
+   with it.  */
 void
 log_close (void)
 {
   int i;
 
-  if (logfp && (logfp != stderr))
+  if (logfp)
     fclose (logfp);
   logfp = NULL;
   inhibit_logging = true;
@@ -640,7 +598,6 @@ log_dump_context (void)
 {
   int num = log_line_current;
   FILE *fp = get_log_fp ();
-  FILE *warcfp = get_warc_log_fp ();
   if (!fp)
     return;
 
@@ -652,23 +609,14 @@ log_dump_context (void)
     {
       struct log_ln *ln = log_lines + num;
       if (ln->content)
-        {
-          FPUTS (ln->content, fp);
-          if (warcfp != NULL)
-            FPUTS (ln->content, warcfp);
-        }
+        FPUTS (ln->content, fp);
       ROT_ADVANCE (num);
     }
   while (num != log_line_current);
   if (trailing_line)
     if (log_lines[log_line_current].content)
-      {
-        FPUTS (log_lines[log_line_current].content, fp);
-        if (warcfp != NULL)
-          FPUTS (log_lines[log_line_current].content, warcfp);
-      }
+      FPUTS (log_lines[log_line_current].content, fp);
   fflush (fp);
-  fflush (warcfp);
 }
 
 /* String escape functions. */

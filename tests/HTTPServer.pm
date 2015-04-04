@@ -218,24 +218,12 @@ sub verify_request_headers {
 
     return 1 unless exists $url_rec->{'request_headers'};
     for my $hdrname (keys %{$url_rec->{'request_headers'}}) {
-        my $must_not_match;
-        my $ehdr = $url_rec->{'request_headers'}{$hdrname};
-        if ($must_not_match = ($hdrname =~ /^!(\w+)/)) {
-            $hdrname = $1;
-        }
         my $rhdr = $req->header ($hdrname);
-        if ($must_not_match) {
-            if (defined $rhdr && $rhdr =~ $ehdr) {
-                $rhdr = '' unless defined $rhdr;
-                print STDERR "\n*** Match forbidden $hdrname: $rhdr =~ $ehdr\n";
-                return undef;
-            }
-        } else {
-            unless (defined $rhdr && $rhdr =~ $ehdr) {
-                $rhdr = '' unless defined $rhdr;
-                print STDERR "\n*** Mismatch on $hdrname: $rhdr =~ $ehdr\n";
-                return undef;
-            }
+        my $ehdr = $url_rec->{'request_headers'}{$hdrname};
+        unless (defined $rhdr && $rhdr =~ $ehdr) {
+            $rhdr = '' unless defined $rhdr;
+            print STDERR "\n*** Mismatch on $hdrname: $rhdr =~ $ehdr\n";
+            return undef;
         }
     }
 

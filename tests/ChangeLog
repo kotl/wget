@@ -1,20 +1,3 @@
-2013-03-12  Darshit Shah <darnir@gmail.com>
-
-	* Makefile.am (EXTRA_DIST): Add Test--post-file.px.
-	* run-px (tests): Likewise.
-	* Test--post-file.px: New file.
-
-2012-11-09  Tim Ruehsen  <tim.ruehsen@gmx.de>
-
-	* HTTPServer.pm: added check for must-not-match request-header
-	* Test-cookies.px: check cookie deletion and cookie domain matching
-
-2012-06-16  Giuseppe Scrivano  <gscrivano@gnu.org>
-
-	* Makefile.am (EXTRA_DIST): Add Test-stdouterr.px.
-	* run-px (tests): Likewise.
-	* Test-stdouterr.px: New file.
-
 2011-06-03  Merinov Nikolay  <kim.roader@gmail.com>
 
 	* Test-idn-cmd-utf8.px: Added test for idn with utf-8 local encoding.

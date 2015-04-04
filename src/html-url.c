@@ -1,6 +1,6 @@
 /* Collect URLs from HTML source.
    Copyright (C) 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
-   2007, 2008, 2009, 2010, 2011, 2012 Free Software Foundation, Inc.
+   2007, 2008, 2009, 2010, 2011 Free Software Foundation, Inc.
 
 This file is part of GNU Wget.
 
@@ -77,7 +77,6 @@ enum {
   TAG_OBJECT,
   TAG_OVERLAY,
   TAG_SCRIPT,
-  TAG_SOURCE,
   TAG_TABLE,
   TAG_TD,
   TAG_TH
@@ -109,7 +108,6 @@ static struct known_tag {
   { TAG_OBJECT,  "object",      tag_find_urls },
   { TAG_OVERLAY, "overlay",     tag_find_urls },
   { TAG_SCRIPT,  "script",      tag_find_urls },
-  { TAG_SOURCE,  "source",      tag_find_urls },
   { TAG_TABLE,   "table",       tag_find_urls },
   { TAG_TD,      "td",          tag_find_urls },
   { TAG_TH,      "th",          tag_find_urls }
@@ -157,7 +155,6 @@ static struct {
   { TAG_OBJECT,         "data",         ATTR_INLINE },
   { TAG_OVERLAY,        "src",          ATTR_INLINE | ATTR_HTML },
   { TAG_SCRIPT,         "src",          ATTR_INLINE },
-  { TAG_SOURCE,         "src",          ATTR_INLINE },
   { TAG_TABLE,          "background",   ATTR_INLINE },
   { TAG_TD,             "background",   ATTR_INLINE },
   { TAG_TH,             "background",   ATTR_INLINE }
@@ -678,9 +675,8 @@ collect_tags_mapper (struct taginfo *tag, void *arg)
 
   check_style_attr (tag, ctx);
 
-  if (tag->end_tag_p && (0 == strcasecmp (tag->name, "style"))
-      && tag->contents_begin && tag->contents_end
-      && tag->contents_begin <= tag->contents_end)
+  if (tag->end_tag_p && (0 == strcasecmp (tag->name, "style")) &&
+      tag->contents_begin && tag->contents_end)
   {
     /* parse contents */
     get_urls_css (ctx, tag->contents_begin - ctx->text,
@@ -805,13 +801,6 @@ get_urls_file (const char *file)
           char *merged = uri_merge (opt.base_href, url_text);
           xfree (url_text);
           url_text = merged;
-        }
-
-      char *new_url = rewrite_shorthand_url (url_text);
-      if (new_url)
-        {
-          xfree (url_text);
-          url_text = new_url;
         }
 
       url = url_parse (url_text, &up_error_code, NULL, false);

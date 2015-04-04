@@ -55,7 +55,6 @@ as that of the covered work.  */
 #include "convert.h"
 #include "html-url.h"
 #include "css-tokens.h"
-#include "css-url.h"
 
 /* from lex.yy.c */
 extern char *yytext;
@@ -108,7 +107,7 @@ const char *token_names[] = {
   whitespace after the opening parenthesis and before the closing
   parenthesis.
 */
-static char *
+char *
 get_uri_string (const char *at, int *pos, int *length)
 {
   char *uri;

@@ -524,10 +524,7 @@ ftp_pasv (int csock, ip_address *addr, int *port)
   for (s += 4; *s && !c_isdigit (*s); s++)
     ;
   if (!*s)
-    {
-      xfree (respline);
-      return FTPINVPASV;
-    }
+    return FTPINVPASV;
   for (i = 0; i < 6; i++)
     {
       tmp[i] = 0;
@@ -596,10 +593,7 @@ ftp_lpsv (int csock, ip_address *addr, int *port)
   for (s += 4; *s && !c_isdigit (*s); s++)
     ;
   if (!*s)
-    {
-      xfree (respline);
-      return FTPINVPASV;
-    }
+    return FTPINVPASV;
 
   /* First, get the address family */
   af = 0;

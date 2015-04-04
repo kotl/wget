@@ -68,17 +68,16 @@ symperms (const char *s)
    replaces all <TAB> character with <SPACE>. Returns the length of the
    modified line. */
 static int
-clean_line (char *line, int len)
+clean_line(char *line)
 {
-  if (len <= 0) return 0;
-
-  while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r'))
-    line[--len] = '\0';
-
+  int len = strlen (line);
   if (!len) return 0;
-
+  if (line[len - 1] == '\n')
+    line[--len] = '\0';
+  if (!len) return 0;
+  if (line[len - 1] == '\r')
+    line[--len] = '\0';
   for ( ; *line ; line++ ) if (*line == '\t') *line = ' ';
-
   return len;
 }
 
@@ -103,9 +102,8 @@ ftp_parse_unix_ls (const char *file, int ignore_perms)
   int hour, min, sec, ptype;
   struct tm timestruct, *tnow;
   time_t timenow;
-  size_t bufsize = 0;
 
-  char *line = NULL, *tok, *ptok;      /* tokenizer */
+  char *line, *tok, *ptok;      /* tokenizer */
   struct fileinfo *dir, *l, cur; /* list creation */
 
   fp = fopen (file, "rb");
@@ -117,16 +115,22 @@ ftp_parse_unix_ls (const char *file, int ignore_perms)
   dir = l = NULL;
 
   /* Line loop to end of file: */
-  while ((len = getline (&line, &bufsize, fp)) > 0)
+  while ((line = read_whole_line (fp)) != NULL)
     {
-      len = clean_line (line, len);
+      len = clean_line (line);
       /* Skip if total...  */
       if (!strncasecmp (line, "total", 5))
-        continue;
+        {
+          xfree (line);
+          continue;
+        }
       /* Get the first token (permissions).  */
       tok = strtok (line, " ");
       if (!tok)
-        continue;
+        {
+          xfree (line);
+          continue;
+        }
 
       cur.name = NULL;
       cur.linkto = NULL;
@@ -364,6 +368,7 @@ ftp_parse_unix_ls (const char *file, int ignore_perms)
           DEBUGP (("Skipping.\n"));
           xfree_null (cur.name);
           xfree_null (cur.linkto);
+          xfree (line);
           continue;
         }
 
@@ -411,9 +416,10 @@ ftp_parse_unix_ls (const char *file, int ignore_perms)
       timestruct.tm_isdst = -1;
       l->tstamp = mktime (&timestruct); /* store the time-stamp */
       l->ptype = ptype;
+
+      xfree (line);
     }
 
-  xfree (line);
   fclose (fp);
   return dir;
 }
@@ -425,11 +431,9 @@ ftp_parse_winnt_ls (const char *file)
   int len;
   int year, month, day;         /* for time analysis */
   int hour, min;
-  size_t bufsize = 0;
   struct tm timestruct;
 
-  char *line = NULL, *tok;             /* tokenizer */
-  char *filename;
+  char *line, *tok;             /* tokenizer */
   struct fileinfo *dir, *l, cur; /* list creation */
 
   fp = fopen (file, "rb");
@@ -441,53 +445,43 @@ ftp_parse_winnt_ls (const char *file)
   dir = l = NULL;
 
   /* Line loop to end of file: */
-  while ((len = getline (&line, &bufsize, fp)) > 0)
+  while ((line = read_whole_line (fp)) != NULL)
     {
-      len = clean_line (line, len);
+      len = clean_line (line);
 
-      /* Name begins at 39 column of the listing if date presented in `mm-dd-yy'
-         format or at 41 column if date presented in `mm-dd-yyyy' format. Thus,
-         we cannot extract name before we parse date. Using this information we
-         also can recognize filenames that begin with a series of space
-         characters (but who really wants to use such filenames anyway?). */
-      if (len < 40) continue;
-      filename = line + 39;
+      /* Extracting name is a bit of black magic and we have to do it
+         before `strtok' inserted extra \0 characters in the line
+         string. For the moment let us just suppose that the name starts at
+         column 39 of the listing. This way we could also recognize
+         filenames that begin with a series of space characters (but who
+         really wants to use such filenames anyway?). */
+      if (len < 40) goto continue_loop;
+      tok = line + 39;
+      cur.name = xstrdup(tok);
+      DEBUGP (("Name: '%s'\n", cur.name));
 
-      /* First column: mm-dd-yy or mm-dd-yyyy. Should atoi() on the month fail,
-         january will be assumed.  */
+      /* First column: mm-dd-yy. Should atoi() on the month fail, january
+         will be assumed.  */
       tok = strtok(line, "-");
-      if (tok == NULL) continue;
+      if (tok == NULL) goto continue_loop;
       month = atoi(tok) - 1;
       if (month < 0) month = 0;
       tok = strtok(NULL, "-");
-      if (tok == NULL) continue;
+      if (tok == NULL) goto continue_loop;
       day = atoi(tok);
       tok = strtok(NULL, " ");
-      if (tok == NULL) continue;
+      if (tok == NULL) goto continue_loop;
       year = atoi(tok);
       /* Assuming the epoch starting at 1.1.1970 */
-      if (year <= 70)
-        {
-          year += 100;
-        }
-      else if (year >= 1900)
-        {
-          year -= 1900;
-          filename += 2;
-        }
-      /* Now it is possible to determine the position of the first symbol in
-         filename. */
-      cur.name = xstrdup(filename);
-      DEBUGP (("Name: '%s'\n", cur.name));
-
+      if (year <= 70) year += 100;
 
       /* Second column: hh:mm[AP]M, listing does not contain value for
          seconds */
       tok = strtok(NULL,  ":");
-      if (tok == NULL) continue;
+      if (tok == NULL) goto continue_loop;
       hour = atoi(tok);
       tok = strtok(NULL,  "M");
-      if (tok == NULL) continue;
+      if (tok == NULL) goto continue_loop;
       min = atoi(tok);
       /* Adjust hour from AM/PM. Just for the record, the sequence goes
          11:00AM, 12:00PM, 01:00PM ... 11:00PM, 12:00AM, 01:00AM . */
@@ -518,9 +512,9 @@ ftp_parse_winnt_ls (const char *file)
          directories as the listing does not give us a clue) and filetype
          here. */
       tok = strtok(NULL, " ");
-      if (tok == NULL) continue;
+      if (tok == NULL) goto continue_loop;
       while ((tok != NULL) && (*tok == '\0'))  tok = strtok(NULL, " ");
-      if (tok == NULL) continue;
+      if (tok == NULL) goto continue_loop;
       if (*tok == '<')
         {
           cur.type  = FT_DIRECTORY;
@@ -559,9 +553,11 @@ ftp_parse_winnt_ls (const char *file)
           memcpy (l, &cur, sizeof (cur));
           l->next = NULL;
         }
+
+continue_loop:
+      xfree (line);
     }
 
-  xfree (line);
   fclose(fp);
   return dir;
 }
@@ -682,12 +678,11 @@ ftp_parse_vms_ls (const char *file)
   FILE *fp;
   int dt, i, j, len;
   int perms;
-  size_t bufsize = 0;
   time_t timenow;
   struct tm *timestruct;
   char date_str[ 32];
 
-  char *line = NULL, *tok; /* tokenizer */
+  char *line, *tok;		 /* tokenizer */
   struct fileinfo *dir, *l, cur; /* list creation */
 
   fp = fopen (file, "r");
@@ -700,34 +695,52 @@ ftp_parse_vms_ls (const char *file)
 
   /* Skip blank lines, Directory heading, and more blank lines. */
 
-  for (j = 0; (i = getline (&line, &bufsize, fp)) > 0; )
+  j = 0; /* Expecting initial blank line(s). */
+  while (1)
     {
-      i = clean_line (line, i);
-      if (i <= 0)
-        continue; /* Ignore blank line. */
-
-      if ((j == 0) && (line[i - 1] == ']'))
+      line = read_whole_line (fp);
+      if (line == NULL)
         {
-          /* Found Directory heading line.  Next non-blank line
-          is significant. */
-          j = 1;
-        }
-      else if (!strncmp (line, "Total of ", 9))
-        {
-          /* Found "Total of ..." footing line.  No valid data
-             will follow (empty directory). */
-          i = 0; /* Arrange for early exit. */
-          break;
+        break;
         }
       else
         {
-          break; /* Must be significant data. */
+          i = clean_line (line);
+          if (i <= 0)
+            {
+              xfree (line); /* Free useless line storage. */
+              continue; /* Blank line.  Keep looking. */
+            }
+          else
+            {
+              if ((j == 0) && (line[ i- 1] == ']'))
+                {
+                  /* Found Directory heading line.  Next non-blank line
+                  is significant.
+                  */
+                  j = 1;
+                }
+              else if (!strncmp (line, "Total of ", 9))
+                {
+                  /* Found "Total of ..." footing line.  No valid data
+                     will follow (empty directory).
+                  */
+                  xfree (line); /* Free useless line storage. */
+                  line = NULL; /* Arrange for early exit. */
+                  break;
+                }
+              else
+                {
+                  break; /* Must be significant data. */
+                }
+            }
+          xfree (line); /* Free useless line storage. */
         }
     }
 
   /* Read remainder of file until the next blank line or EOF. */
 
-  while (i > 0)
+  while (line != NULL)
     {
       char *p;
 
@@ -818,8 +831,9 @@ ftp_parse_vms_ls (const char *file)
       if (tok == NULL)
         {
           DEBUGP (("Getting additional line.\n"));
-          i = getline (&line, &bufsize, fp);
-          if (i <= 0)
+          xfree (line);
+          line = read_whole_line (fp);
+          if (!line)
             {
               DEBUGP (("EOF.  Leaving listing parser.\n"));
               break;
@@ -828,14 +842,14 @@ ftp_parse_vms_ls (const char *file)
           /* Second line must begin with " ".  Otherwise, it's a first
              line (and we may be confused).
           */
-          i = clean_line (line, i);
           if (i <= 0)
             {
               /* Blank line.  End of significant file listing. */
               DEBUGP (("Blank line.  Leaving listing parser.\n"));
+              xfree (line); /* Free useless line storage. */
               break;
             }
-          else if (line[0] != ' ')
+          else if (line[ 0] != ' ')
             {
               DEBUGP (("Non-blank in column 1.  Must be a new file name?\n"));
               continue;
@@ -847,6 +861,7 @@ ftp_parse_vms_ls (const char *file)
                 {
                   /* Unexpected non-empty but apparently blank line. */
                   DEBUGP (("Null token.  Leaving listing parser.\n"));
+                  xfree (line); /* Free useless line storage. */
                   break;
                 }
             }
@@ -885,7 +900,7 @@ ftp_parse_vms_ls (const char *file)
                        (sizeof( date_str)- strlen (date_str) - 1));
               DEBUGP (("Date time: >%s<\n", date_str));
             }
-          else if (strchr (tok, '[') != NULL)
+          else if (strchr ( tok, '[') != NULL)
             {
               /* Owner.  (Ignore.) */
               DEBUGP (("Owner.\n"));
@@ -895,7 +910,7 @@ ftp_parse_vms_ls (const char *file)
               /* Protections (permissions). */
               perms = 0;
               j = 0;
-              for (i = 0; i < strlen(tok); i++)
+              for (i = 0; i < strlen( tok); i++)
                 {
                   switch (tok[ i])
                     {
@@ -989,19 +1004,21 @@ ftp_parse_vms_ls (const char *file)
           l->next = NULL;
         }
 
-      i = getline (&line, &bufsize, fp);
-      if (i > 0)
+      /* Free old line storage.  Read a new line. */
+      xfree (line);
+      line = read_whole_line (fp);
+      if (line != NULL)
         {
-          i = clean_line (line, i);
+          i = clean_line (line);
           if (i <= 0)
-            {
+	    {
               /* Blank line.  End of significant file listing. */
-              break;
-            }
+              xfree (line); /* Free useless line storage. */
+	      break;
+	    }
         }
     }
 
-  xfree (line);
   fclose (fp);
   return dir;
 }

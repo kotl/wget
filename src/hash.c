@@ -423,14 +423,14 @@ grow_hash_table (struct hash_table *ht)
    table if necessary.  */
 
 void
-hash_table_put (struct hash_table *ht, const void *key, const void *value)
+hash_table_put (struct hash_table *ht, const void *key, void *value)
 {
   struct cell *c = find_cell (ht, key);
   if (CELL_OCCUPIED (c))
     {
       /* update existing item */
       c->key   = (void *)key; /* const? */
-      c->value = (void *)value;
+      c->value = value;
       return;
     }
 
@@ -445,7 +445,7 @@ hash_table_put (struct hash_table *ht, const void *key, const void *value)
   /* add new item */
   ++ht->count;
   c->key   = (void *)key;       /* const? */
-  c->value = (void *)value;
+  c->value = value;
 }
 
 /* Remove KEY->value mapping from HT.  Return 0 if there was no such
