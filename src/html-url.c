@@ -77,6 +77,7 @@ enum {
   TAG_OBJECT,
   TAG_OVERLAY,
   TAG_SCRIPT,
+  TAG_SOURCE,
   TAG_TABLE,
   TAG_TD,
   TAG_TH
@@ -108,6 +109,7 @@ static struct known_tag {
   { TAG_OBJECT,  "object",      tag_find_urls },
   { TAG_OVERLAY, "overlay",     tag_find_urls },
   { TAG_SCRIPT,  "script",      tag_find_urls },
+  { TAG_SOURCE,  "source",      tag_find_urls },
   { TAG_TABLE,   "table",       tag_find_urls },
   { TAG_TD,      "td",          tag_find_urls },
   { TAG_TH,      "th",          tag_find_urls }
@@ -155,6 +157,7 @@ static struct {
   { TAG_OBJECT,         "data",         ATTR_INLINE },
   { TAG_OVERLAY,        "src",          ATTR_INLINE | ATTR_HTML },
   { TAG_SCRIPT,         "src",          ATTR_INLINE },
+  { TAG_SOURCE,         "src",          ATTR_INLINE },
   { TAG_TABLE,          "background",   ATTR_INLINE },
   { TAG_TD,             "background",   ATTR_INLINE },
   { TAG_TH,             "background",   ATTR_INLINE }
