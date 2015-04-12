@@ -80,7 +80,8 @@ enum {
   TAG_SOURCE,
   TAG_TABLE,
   TAG_TD,
-  TAG_TH
+  TAG_TH,
+  TAG_VIDEO
 };
 
 /* The list of known tags and functions used for handling them.  Most
@@ -112,7 +113,8 @@ static struct known_tag {
   { TAG_SOURCE,  "source",      tag_find_urls },
   { TAG_TABLE,   "table",       tag_find_urls },
   { TAG_TD,      "td",          tag_find_urls },
-  { TAG_TH,      "th",          tag_find_urls }
+  { TAG_TH,      "th",          tag_find_urls },
+  { TAG_VIDEO,   "video",       tag_find_urls }
 };
 
 /* tag_url_attributes documents which attributes of which tags contain
