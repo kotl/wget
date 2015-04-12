@@ -162,7 +162,8 @@ static struct {
   { TAG_SOURCE,         "src",          ATTR_INLINE },
   { TAG_TABLE,          "background",   ATTR_INLINE },
   { TAG_TD,             "background",   ATTR_INLINE },
-  { TAG_TH,             "background",   ATTR_INLINE }
+  { TAG_TH,             "background",   ATTR_INLINE },
+  { TAG_VIDEO,          "poster",       ATTR_INLINE }
 };
 
 /* The lists of interesting tags and attributes are built dynamically,
