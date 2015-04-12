@@ -81,6 +81,7 @@ enum {
   TAG_TABLE,
   TAG_TD,
   TAG_TH,
+  TAG_TRACK,
   TAG_VIDEO
 };
 
@@ -114,6 +115,7 @@ static struct known_tag {
   { TAG_TABLE,   "table",       tag_find_urls },
   { TAG_TD,      "td",          tag_find_urls },
   { TAG_TH,      "th",          tag_find_urls },
+  { TAG_TRACK,   "track",       tag_find_urls },
   { TAG_VIDEO,   "video",       tag_find_urls }
 };
 
@@ -163,6 +165,7 @@ static struct {
   { TAG_TABLE,          "background",   ATTR_INLINE },
   { TAG_TD,             "background",   ATTR_INLINE },
   { TAG_TH,             "background",   ATTR_INLINE },
+  { TAG_TRACK,          "src",          ATTR_INLINE },
   { TAG_VIDEO,          "poster",       ATTR_INLINE }
 };
 
